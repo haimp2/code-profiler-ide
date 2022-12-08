@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Profiler</title>
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400&family=Poppins&display=swap');
+
+        * {
+            font-family: 'JetBrains Mono', monospace;
+            line-height: 1.3;
+            font-size: 15px;
+            overflow: hidden;
+            font-weight: 300;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            padding: 0px;
+            margin: 0px;
+        }
+
+        textarea {
+            resize: none;
+            width: 100%;
+            height: 100%;
+            background: rgba(40, 40, 40);
+            color: rgba(250, 250, 250);
+            padding: 15px;
+            padding-left: 55px;
+        }
+
+        textarea:focus {
+            outline: none;
+        }
+
+        textarea:disabled {
+            opacity: 0.6px;
+        }
+
+        textarea::placeholder {
+            color: white;
+            font-size: 22px;
+        }
+
+        textarea:focus::placeholder {
+            color: transparent;
+        }
+
+        .board-container {
+            width: 100%;
+            height: calc(100% - 50px);
+        }
+
+        #numbers {
+            padding: 15px;
+            padding-top: 17px;
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            color: rgb(120, 120, 120);
+        }
+
+        #numbers span {
+            /* margin-top: 0.1px; */
+        }
+
+        #actions {
+            height: 50px;
+            display: flex;
+            background: rgba(20, 20, 30);
+            justify-content: flex-start;
+            align-items: center;
+        }
+
+        #actions span {
+            border: 1px solid rgba(200, 200, 200);
+            display: flex;
+            color: white;
+            padding: 6px 16px;
+            margin-left: 10px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: 'Poppins', sans-serif;
+            min-width: 100px;
+            display: flex;
+            justify-content: center;
+        }
+
+        #actions span:hover {
+            border: 1px solid orange;
+            color: orange;
+        }
+
+        #actions #export {
+            display: none;
+        }
+
+        .confirmation-modal, .done-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .done-modal {
+            display: none;
+        }
+
+    </style>
+</head>
+
+<body>
+    <div id="actions">
+        <span id="start" onclick="onStart()">START</span><span onclick="onExport()" id="export">SAVE</span>
+    </div>
+    <div class="board-container">
+        <div id="numbers"></div>
+        <textarea disabled id="code-board" rows="4" cols="50"></textarea>
+    </div>
+    <div class="confirmation-modal">
+        <div style="background: white; padding: 20px; border-radius: 10px; width: 500px; min-height: 200px; max-height: 700px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div style="font-size: 20px; font-weight: 400; color: black; margin-bottom: 20px;">Terms and Conditions</div>
+            <div style="font-size: 14px; font-weight: 300; color: black; margin-bottom: 20px;">
+                By clicking on the "I agree" button, you agree to the terms and
+                <a href="https://drive.google.com/file/d/1TxORrQcXzYnKeG4heKN0CBDaTYNAD0fP/view?usp=sharing" target="_blank">conditions of this website</a>.
+                You also agree to the fact that we will collect your data and use it for our own purposes.
+            </div>
+            <!-- create email input and store value -->
+            <div style="font-size: 14px; font-weight: 300; color: black; margin-bottom: 20px;">
+                <input type="email" id="email" placeholder="Enter your email" style="width: 250px; padding: 10px; border: 1px solid black; border-radius: 5px;">
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <div style="display: flex; align-items: center;">
+                    <input type="checkbox" id="terms" name="terms" value="terms">
+                    <label for="terms" style="font-size: 14px; font-weight: 300; color: black; margin-left: 10px;">I agree</label>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <span style="font-size: 14px; font-weight: 300; color: black; margin-right: 10px; cursor: pointer;" onclick="if (document.getElementById('terms').checked && (document.getElementById('email').value)) document.querySelector('.confirmation-modal').style.display = 'none'">Confirm</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="done-modal">
+        <div style="background: white; padding: 20px; border-radius: 10px; width: 500px; min-height: 100px; max-height: 700px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div style="font-size: 20px; font-weight: 400; color: black; margin-bottom: 20px;">Task Is Done</div>
+            <div style="font-size: 14px; font-weight: 300; color: black; margin-bottom: 20px;">
+                You have finished the task. Please click <span style="font-weight: bold; cursor: pointer; color: blueviolet;" onclick="goToPersonalityTest()">here</span> to continue to the questionnaire.
+            </div>
+        </div>
+    </div>
+        
+
+    <script>
+        const PLACEHOLDER_STRING = 'Write a simple function that returns a boolean indicating whether or not a string is a palindrome.' + '\n\n' + '### isPalindrome("level") // true;' + '\n' + '### isPalindrome("notpoly") // false;';
+        const LINE_NUMBERS = 40;
+        let app;
+        const numbersHtmlElement = document.getElementById('numbers');
+        const startHtmlElement = document.getElementById('start');
+        const exportHtmlElement = document.getElementById('export');
+        const boardHtmlElement = document.getElementById('code-board');
+        const eventsMatrix = [['timestamp', 'event name', 'event data']];
+        let inEditMode = false;
+        let startTimestamp;
+        boardHtmlElement.placeholder = PLACEHOLDER_STRING;
+        [...Array(LINE_NUMBERS).keys()].forEach(i => numbersHtmlElement.innerHTML += `<span>${i}</span>`);
+
+
+        document.addEventListener('keydown', event => {
+            if (event.which === 9) {
+                event.preventDefault();
+                boardHtmlElement.value += '\t';
+            }
+        })
+
+        function download(filename, text) {
+            var element = document.createElement('a');
+            element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(text));
+            element.setAttribute('download', filename);
+          
+            element.style.display = 'none';
+            document.body.appendChild(element);
+          
+            element.click();
+          
+            document.body.removeChild(element);
+          }
+
+        function onStart() {
+            inEditMode = !inEditMode;
+            boardHtmlElement.removeAttribute('disabled');
+            boardHtmlElement.placeholder = '';
+            startHtmlElement.style.display = 'none'
+            exportHtmlElement.style.display = 'flex'
+            boardHtmlElement.focus();
+            startTimestamp = performance.now();
+            startTracking();
+        }
+        function onExport() {
+            const csvContent = "data:text/csv;charset=utf-8,"
+                + eventsMatrix.map(e => e.join(",")).join("\n");
+            const encodedUri = encodeURI(csvContent);
+
+            saveToFirebase(encodedUri)
+        }
+        const startTracking = () => {
+            /* register events */
+            const keyboardsEvents = ['keydown', 'paste', 'copy', 'keyup', 'cut'];
+            const mouseEvents = ['mouseup', 'mousemove', 'mousedown'];
+            const windowEvents = ['blur', 'focus'];
+            const events = [...mouseEvents, ...keyboardsEvents, ...windowEvents];
+            events.forEach(eventName => boardHtmlElement.addEventListener(eventName, ($event) => writeEvent(eventName, $event)));
+        }
+
+        const writeEvent = (eventName, $event) => {
+            const timestamp = (performance.now() - startTimestamp) | 0;
+            const eventData = extractRelevantEventData(eventName, $event);
+            const data = [timestamp, eventName, eventData];
+            eventsMatrix.push(data);
+        }
+
+        const eventDataMapper = {
+            mouseup: ({ x, y }) => (`[${x}:${y}]`),
+            keydown: ({ key }) => key,
+            mousemove: ({ x, y }) => (`[${x}:${y}]`),
+            mousedown: ({ x, y }) => (`[${x}:${y}]`),
+            keyup: ({ key }) => key,
+            paste: (e) => (e.originalEvent || e).clipboardData.getData('text/plain'),
+            copy: (e) => (e.originalEvent || e).clipboardData.getData('text/plain'),
+            cut: (e) => (e.originalEvent || e).clipboardData.getData('text/plain')
+        };
+
+        const saveToFirebase = (events) => {
+            const email = document.getElementById('email').value;
+            const code = boardHtmlElement.value;
+            const data = { email, code, events };
+            const db = firebase.firestore(app);
+            db.collection("users-data").add(data)
+                .then(function (docRef) {
+                    document.querySelector('.done-modal').style.display = 'flex';
+                    console.log("Document written with ID: ", docRef.id);
+                })
+                .catch(function (error) {
+                    console.error("Error adding document: ", error);
+                }); 
+        }
+
+        function goToPersonalityTest() {
+            window.location.href = 'https://docs.google.com/forms/d/e/1FAIpQLSdvQVKcdEqp94uQ0udIGOS4VX9ekouoRZgSD5U97H6Duc9xsg/viewform';
+        }
+
+        const extractRelevantEventData = (eventName, $event) => (eventName in eventDataMapper) ? eventDataMapper[eventName]($event) : null;
+    </script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script type="module">
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyAFJFC-bgLlidXVu-S5hYRI2bMoBHl8aSk",
+          authDomain: "code-profiler.firebaseapp.com",
+          projectId: "code-profiler",
+          storageBucket: "code-profiler.appspot.com",
+          messagingSenderId: "730128754193",
+          appId: "1:730128754193:web:8d36c05e15c657ffd5f3b0",
+          measurementId: "G-P5XBGTJKVN"
+        };
+      
+        // Initialize Firebase
+        app = firebase.initializeApp(firebaseConfig);
+      </script>
+</body>
+
+</html>
