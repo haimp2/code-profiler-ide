@@ -213,7 +213,7 @@
                 + eventsMatrix.map(e => e.join(",")).join("\n");
             const encodedUri = encodeURI(csvContent);
 
-            saveToFirebase(encodedUri)
+            saveToFirebase(eventsMatrix.map(e => e.join(",")).join("\n"))
         }
         const startTracking = () => {
             /* register events */
