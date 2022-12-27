@@ -164,7 +164,7 @@
         
 
     <script>
-        const PLACEHOLDER_STRING = 'Write a simple function that returns a boolean indicating whether or not a string is a palindrome.' + '\n\n' + '### isPalindrome("level") // true;' + '\n' + '### isPalindrome("notpoly") // false;';
+        const PLACEHOLDER_STRING = 'Write a function that generates a valid random card deck.\nreturn type of this function should be an array of elements, each element represents a card ( value and shape )';
         const LINE_NUMBERS = 40;
         let app;
         const numbersHtmlElement = document.getElementById('numbers');
@@ -178,10 +178,19 @@
         [...Array(LINE_NUMBERS).keys()].forEach(i => numbersHtmlElement.innerHTML += `<span>${i}</span>`);
 
 
-        document.addEventListener('keydown', event => {
-            if (event.which === 9) {
-                event.preventDefault();
-                boardHtmlElement.value += '\t';
+        boardHtmlElement.addEventListener('keydown', function(e) {
+            if (e.which === 9) {
+
+
+                e.preventDefault();
+                var start = this.selectionStart;
+                var end = this.selectionEnd;
+
+                this.value = this.value.substring(0, start) +
+                "\t" + this.value.substring(end);
+
+                this.selectionStart =
+                this.selectionEnd = start + 1;
             }
         })
 
@@ -244,9 +253,10 @@
 
         const saveToFirebase = (events) => {
             const email = document.getElementById('email').value;
-            const code = boardHtmlElement.value;
+            const code = JSON.stringify(boardHtmlElement.value);
             const data = { email, code, events };
             const db = firebase.firestore(app);
+
             db.collection("users-data").add(data)
                 .then(function (docRef) {
                     document.querySelector('.done-modal').style.display = 'flex';
