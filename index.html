@@ -26,14 +26,21 @@
             margin: 0px;
         }
 
-        textarea {
-            resize: none;
+        #code-board {
             width: 100%;
             height: 100%;
             background: rgba(40, 40, 40);
             color: rgba(250, 250, 250);
             padding: 15px;
             padding-left: 55px;
+        }
+        
+        #details-text-area {
+            height: 200px;
+        }
+
+        textarea {
+            resize: none;
         }
 
         textarea:focus {
@@ -102,7 +109,7 @@
             display: none;
         }
 
-        .confirmation-modal, .done-modal {
+        .confirmation-modal, .done-modal, .details-modal {
             position: fixed;
             top: 0;
             left: 0;
@@ -115,7 +122,7 @@
             z-index: 100;
         }
 
-        .done-modal {
+        .done-modal, .details-modal {
             display: none;
         }
 
@@ -148,11 +155,26 @@
                     <label for="terms" style="font-size: 14px; font-weight: 300; color: black; margin-left: 10px;">I agree</label>
                 </div>
                 <div style="display: flex; align-items: center;">
-                    <span style="font-size: 14px; font-weight: 300; color: black; margin-right: 10px; cursor: pointer;" onclick="if (document.getElementById('terms').checked && (document.getElementById('email').value)) document.querySelector('.confirmation-modal').style.display = 'none'">Confirm</span>
+                    <span style="font-size: 14px; font-weight: 300; color: black; margin-right: 10px; cursor: pointer;" onclick="onConfirmClicked()">Confirm</span>
                 </div>
             </div>
         </div>
     </div>
+
+    <div class="details-modal">
+        <div style="background: white; padding: 20px; border-radius: 10px; width: 500px; min-height: 200px; max-height: 700px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div style="font-size: 20px; font-weight: 400; color: black; margin-bottom: 20px;">Hello!</div>
+            <div style="font-size: 14px; font-weight: 300; color: black; margin-bottom: 20px;">
+                Before we continue, please tell us in few words how did you became a developer.
+            </div>
+            <!-- create email input and store value -->
+            <textarea id="details-text-area"></textarea>
+            <div style="display: flex;">
+                <span style="font-size: 14px; font-weight: 300; color: black; margin-top: 10px; cursor: pointer;" onclick="onDetailsModalConfirmation()">Confirm</span>
+            </div>
+        </div>
+    </div>
+
     <div class="done-modal">
         <div style="background: white; padding: 20px; border-radius: 10px; width: 500px; min-height: 100px; max-height: 700px; display: flex; flex-direction: column; justify-content: space-between;">
             <div style="font-size: 20px; font-weight: 400; color: black; margin-bottom: 20px;">Task Is Done</div>
@@ -174,12 +196,15 @@
         const startHtmlElement = document.getElementById('start');
         const exportHtmlElement = document.getElementById('export');
         const boardHtmlElement = document.getElementById('code-board');
-        const eventsMatrix = [['timestamp', 'event name', 'event data']];
+        let eventsMatrix;
         let inEditMode = false;
         let startTimestamp;
         boardHtmlElement.placeholder = PLACEHOLDER_STRING;
         [...Array(LINE_NUMBERS).keys()].forEach(i => numbersHtmlElement.innerHTML += `<span>${i}</span>`);
 
+        const dataToSave = { };
+
+        initEventsMatrix();
 
         boardHtmlElement.addEventListener('keydown', function(e) {
             if (e.which === 9) {
@@ -197,18 +222,30 @@
             }
         })
 
-        function download(filename, text) {
-            var element = document.createElement('a');
-            element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(text));
-            element.setAttribute('download', filename);
-          
-            element.style.display = 'none';
-            document.body.appendChild(element);
-          
-            element.click();
-          
-            document.body.removeChild(element);
-          }
+        function initEventsMatrix() {
+            eventsMatrix = [['timestamp', 'event name', 'event data']]
+        }
+
+        function onConfirmClicked() {
+            if (document.getElementById('terms').checked && (document.getElementById('email').value)) document.querySelector('.confirmation-modal').style.display = 'none'; 
+            else return;
+            const detailsModalElement = document.querySelector('.details-modal');
+            detailsModalElement.style.display = 'flex';
+            startTracking(detailsModalElement);
+        }
+
+        function onDetailsModalConfirmation() {
+            const detailsModalElement = document.querySelector('.details-modal');
+            dataToSave.aboutData = {
+                events: eventsMatrix,
+                text: JSON.stringify(document.querySelector('#details-text-area').value)
+            }
+            detailsModalElement.style.display = 'none';
+        }
+
+        function formatMatrix(matrix) {
+            return matrix.map(e => e.join(",")).join("\n");
+        }
 
         function onStart() {
             inEditMode = !inEditMode;
@@ -217,23 +254,22 @@
             startHtmlElement.style.display = 'none'
             exportHtmlElement.style.display = 'flex'
             boardHtmlElement.focus();
-            startTimestamp = performance.now();
-            startTracking();
+            initEventsMatrix();
+            startTracking(boardHtmlElement);
         }
+        
         function onExport() {
-            const csvContent = "data:text/csv;charset=utf-8,"
-                + eventsMatrix.map(e => e.join(",")).join("\n");
-            const encodedUri = encodeURI(csvContent);
-
-            saveToFirebase(eventsMatrix.map(e => e.join(",")).join("\n"))
+            saveToFirebase()
         }
-        const startTracking = () => {
+        
+        const startTracking = (element) => {
             /* register events */
+            startTimestamp = performance.now();
             const keyboardsEvents = ['keydown', 'paste', 'copy', 'keyup', 'cut'];
             const mouseEvents = ['mouseup', 'mousemove', 'mousedown'];
             const windowEvents = ['blur', 'focus'];
             const events = [...mouseEvents, ...keyboardsEvents, ...windowEvents];
-            events.forEach(eventName => boardHtmlElement.addEventListener(eventName, ($event) => writeEvent(eventName, $event)));
+            events.forEach(eventName => element.addEventListener(eventName, ($event) => writeEvent(eventName, $event)));
         }
 
         const writeEvent = (eventName, $event) => {
@@ -254,10 +290,16 @@
             cut: (e) => (e.originalEvent || e).clipboardData.getData('text/plain')
         };
 
-        const saveToFirebase = (events) => {
+        const saveToFirebase = () => {
             const email = document.getElementById('email').value;
             const code = JSON.stringify(boardHtmlElement.value);
-            const data = { email, code, events };
+            const data = { 
+                email, 
+                code, 
+                codeEvents: formatMatrix(eventsMatrix),
+                plainTextEvents: formatMatrix(dataToSave.aboutData.events),
+                plainText: dataToSave.aboutData.text
+            };
             const db = firebase.firestore(app);
 
             db.collection("users-data").add(data)
