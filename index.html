@@ -96,7 +96,6 @@
             font-size: 12px;
             font-family: 'Poppins', sans-serif;
             min-width: 100px;
-            display: flex;
             justify-content: center;
         }
 
@@ -105,7 +104,7 @@
             color: orange;
         }
 
-        #actions #export {
+        #actions #export, #actions #continue, #actions #second-start {
             display: none;
         }
 
@@ -131,7 +130,7 @@
 
 <body>
     <div id="actions">
-        <span id="start" onclick="onStart()">START</span><span onclick="onExport()" id="export">SAVE</span>
+        <span id="start" onclick="onStart()">START</span><span id="second-start" onclick="onSecondStart()">START</span><span onclick="onContinue()" id="continue">CONTINUE</span><span onclick="onSave()" id="export">SAVE</span>
     </div>
     <div class="board-container">
         <div id="numbers"></div>
@@ -186,7 +185,14 @@
         
 
     <script>
-        const PLACEHOLDER_STRING = `
+        const FIRST_QUESTION = `
+        Hey!
+        Let's do a little warm up.
+        If your name starts with the a letter between A - P, print your name.
+        Else, print your name backwards.
+        `;
+        const SECOND_QUESTION = `
+        Now for the main assignment.
         Write a formal java script function that generates a valid random card deck, simulating a card deck after shuffling. 
         return type of this function should be an array of elements, each element represents a card ( value and shape )
         `;
@@ -194,12 +200,14 @@
         let app;
         const numbersHtmlElement = document.getElementById('numbers');
         const startHtmlElement = document.getElementById('start');
+        const secondStartHtmlElement = document.getElementById('second-start');
+        const continueHtmlElement = document.getElementById('continue');
         const exportHtmlElement = document.getElementById('export');
-        const boardHtmlElement = document.getElementById('code-board');
+        let boardHtmlElement = document.getElementById('code-board');
         let eventsMatrix;
         let inEditMode = false;
         let startTimestamp;
-        boardHtmlElement.placeholder = PLACEHOLDER_STRING;
+        boardHtmlElement.placeholder = FIRST_QUESTION;
         [...Array(LINE_NUMBERS).keys()].forEach(i => numbersHtmlElement.innerHTML += `<span>${i}</span>`);
 
         const dataToSave = { };
@@ -229,18 +237,20 @@
         function onConfirmClicked() {
             if (document.getElementById('terms').checked && (document.getElementById('email').value)) document.querySelector('.confirmation-modal').style.display = 'none'; 
             else return;
-            const detailsModalElement = document.querySelector('.details-modal');
-            detailsModalElement.style.display = 'flex';
-            startTracking(detailsModalElement);
         }
 
         function onDetailsModalConfirmation() {
             const detailsModalElement = document.querySelector('.details-modal');
-            dataToSave.aboutData = {
-                events: eventsMatrix,
-                text: JSON.stringify(document.querySelector('#details-text-area').value)
-            }
+            saveCurrentData('aboutData', '#details-text-area');
             detailsModalElement.style.display = 'none';
+            saveToFirebase();
+        }
+
+        function saveCurrentData(type ,selector) {
+            dataToSave[type] = {
+                events: eventsMatrix,
+                text: JSON.stringify(document.querySelector(selector).value)   
+            }
         }
 
         function formatMatrix(matrix) {
@@ -252,14 +262,51 @@
             boardHtmlElement.removeAttribute('disabled');
             boardHtmlElement.placeholder = '';
             startHtmlElement.style.display = 'none'
+            continueHtmlElement.style.display = 'flex'
+            boardHtmlElement.focus();
+            startTracking(boardHtmlElement);
+        }
+
+        function onContinue() {
+            saveCurrentData('firstQuestion', '#code-board');
+            initEventsMatrix();
+            removeEventListenersFromElement('#code-board');
+            boardHtmlElement = document.getElementById('code-board');
+            inEditMode = !inEditMode;
+            boardHtmlElement.setAttribute('disabled', true);
+            boardHtmlElement.value = '';
+            boardHtmlElement.placeholder = SECOND_QUESTION;
+            startHtmlElement.style.display = 'none';
+            continueHtmlElement.style.display = 'none';
+            secondStartHtmlElement.style.display = 'flex';
+        }
+
+        function onSecondStart() {
+            inEditMode = !inEditMode;
+            boardHtmlElement.removeAttribute('disabled');
+            boardHtmlElement.placeholder = '';
+            boardHtmlElement.value = '';
+            secondStartHtmlElement.style.display = 'none'
             exportHtmlElement.style.display = 'flex'
             boardHtmlElement.focus();
-            initEventsMatrix();
             startTracking(boardHtmlElement);
         }
         
-        function onExport() {
-            saveToFirebase()
+        function onSave() {
+            saveCurrentData('mainCode', '#code-board');
+            removeEventListenersFromElement('#code-board');
+            initEventsMatrix();
+
+            // show and start tracing details modal
+            const detailsModalElement = document.querySelector('.details-modal');
+            detailsModalElement.style.display = 'flex';
+            startTracking(detailsModalElement);
+        }
+
+        function removeEventListenersFromElement(selector) {
+            const old_element = document.querySelector(selector);
+            const new_element = old_element.cloneNode(true);
+            old_element.parentNode.replaceChild(new_element, old_element);
         }
         
         const startTracking = (element) => {
@@ -292,13 +339,14 @@
 
         const saveToFirebase = () => {
             const email = document.getElementById('email').value;
-            const code = JSON.stringify(boardHtmlElement.value);
             const data = { 
-                email, 
-                code, 
-                codeEvents: formatMatrix(eventsMatrix),
-                plainTextEvents: formatMatrix(dataToSave.aboutData.events),
-                plainText: dataToSave.aboutData.text
+                email,
+                warmupCode: dataToSave.firstQuestion.text,
+                warmupEvents: formatMatrix(dataToSave.firstQuestion.events),
+                mainCode: dataToSave.mainCode.text, 
+                mainCodeEvents: formatMatrix(dataToSave.mainCode.events),
+                aboutModalText: dataToSave.aboutData.text,
+                aboutModalEvents: formatMatrix(dataToSave.aboutData.events)
             };
             const db = firebase.firestore(app);
 
