@@ -213,22 +213,26 @@
         const dataToSave = { };
 
         initEventsMatrix();
+        addTabEventListener()
 
-        boardHtmlElement.addEventListener('keydown', function(e) {
-            if (e.which === 9) {
-
-
-                e.preventDefault();
-                var start = this.selectionStart;
-                var end = this.selectionEnd;
-
-                this.value = this.value.substring(0, start) +
-                "\t" + this.value.substring(end);
-
-                this.selectionStart =
-                this.selectionEnd = start + 1;
-            }
-        })
+        function addTabEventListener() {
+            
+            boardHtmlElement.addEventListener('keydown', function(e) {
+                if (e.which === 9) {
+    
+    
+                    e.preventDefault();
+                    var start = this.selectionStart;
+                    var end = this.selectionEnd;
+    
+                    this.value = this.value.substring(0, start) +
+                    "\t" + this.value.substring(end);
+    
+                    this.selectionStart =
+                    this.selectionEnd = start + 1;
+                }
+            })
+        }
 
         function initEventsMatrix() {
             eventsMatrix = [['timestamp', 'event name', 'event data']]
@@ -289,6 +293,7 @@
             secondStartHtmlElement.style.display = 'none'
             exportHtmlElement.style.display = 'flex'
             boardHtmlElement.focus();
+            addTabEventListener();
             startTracking(boardHtmlElement);
         }
         
